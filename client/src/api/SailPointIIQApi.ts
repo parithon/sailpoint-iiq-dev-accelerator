@@ -6,7 +6,8 @@ import { Agent as HttpAgent } from 'http';
 import { isStringObject } from 'util/types';
 import { 
   window,
-  ProgressLocation
+  ProgressLocation,
+  workspace
 } from 'vscode';
 
 import { SailPointIIQCredential } from '../auth';
@@ -26,6 +27,10 @@ async function post<T>(url: URL, credential: SailPointIIQCredential, body?: stri
 
 async function req<T>(method: 'GET' | 'POST', url: URL, credential: SailPointIIQCredential, body?: string | object): Promise<Response<T>> {
   let response: Response<T> = { ok: false };
+  
+  if(workspace.getConfiguration('iiq-dev-accelerator').get('disableTLSValidation')){
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+  }
 
   const headers = new Headers();
   headers.append('Content-Type', 'application/json');
@@ -81,14 +86,14 @@ export interface JsonAuthenticationResult {
   authentication: 'success' | 'authenticationFailure';
 }
 
-export async function VerifyAuthentication(credential: SailPointIIQCredential, baseUrl: string): Promise<[boolean, string | undefined]> {
+export async function VerifyAuthentication(credential: SailPointIIQCredential, baseUrl: string): Promise<[boolean, string | undefined, any | undefined]> {
   const requestUrl = getSanitizedUrl(`${baseUrl}/rest/authentication`);
   var resp = await window.withProgress({
     location: ProgressLocation.Notification,
     cancellable: true
-  }, progress => {
+  }, () => {
     return get<JsonAuthenticationResult>(requestUrl, credential);
   });
   const isOK = resp.ok && resp.json?.authentication !== 'authenticationFailure';
-  return [isOK, resp.json?.identity];
+  return [isOK, resp.json?.identity, resp.fail];
 }

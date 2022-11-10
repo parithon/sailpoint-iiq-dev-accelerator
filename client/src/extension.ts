@@ -7,9 +7,10 @@ import { CancellationToken, ExecuteCommandParams, ExecuteCommandRequest, Languag
 import { Commands, IIQCommands } from "./iiq-commands";
 import { projectActivationProgress } from './IIQProjectActivationProgress';
 import { getBSVirtualContent, isInsideBS } from './embedded-bs';
+import { SailPointIIQAuthenticationProvider } from './auth';
 
 let languageClient: LanguageClient;
-let iiqCommands: IIQCommands = new IIQCommands();
+let iiqCommands: IIQCommands;
 
 async function startLanguageClient(ctx: vscode.ExtensionContext) {
   let serverModule = ctx.asAbsolutePath(
@@ -135,6 +136,14 @@ function shouldStartLSP(ctx: vscode.ExtensionContext): boolean {
 export async function activate(ctx: vscode.ExtensionContext) {
 
   console.log('Congratulations, your extension "sailpoint-iiq-dev-accelerator" is now active!');
+
+  const authProvider = new SailPointIIQAuthenticationProvider(ctx.secrets);
+  const registeredAuthProvider = vscode.authentication.registerAuthenticationProvider(SailPointIIQAuthenticationProvider.id, 'SailPoint IdentityIQ', authProvider, {
+    supportsMultipleAccounts: false
+  });
+  ctx.subscriptions.push(registeredAuthProvider);
+
+  iiqCommands = new IIQCommands(authProvider)
 
   let statusBarEnvItem = iiqCommands.getStatusBar();
   statusBarEnvItem.command = 'iiq-dev-accelerator.switchEnv';

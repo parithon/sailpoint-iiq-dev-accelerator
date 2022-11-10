@@ -1,5 +1,5 @@
 export interface SailPointIIQCredential {
-  environment: string;
-  username: string;
-  password: string;
+  readonly environment: string;
+  readonly username: string;
+  readonly password: string;
 }

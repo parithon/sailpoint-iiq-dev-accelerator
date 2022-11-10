@@ -14,6 +14,13 @@ import { DOMParser } from 'xmldom'
 import { XMLSerializer } from 'xmldom'
 const fg = require('fast-glob');
 
+import { 
+  SailPointIIQAuthenticationProvider,
+  SailPointIIQAuthenticationSession,
+  SailPointIIQCredential
+} from './auth';
+import { VerifyAuthentication } from './api';
+
 export namespace Commands{
   export const SHOW_LANGUAGE_SERVER_OUTPUT = 'show.language.server.output';
   export const EXECUTE_WORKSPACE_COMMAND = 'execute.workspaceCommand';
@@ -143,7 +150,7 @@ export class IIQCommands {
       }
     }
   }
-  constructor(){
+  constructor(private readonly authProvider: SailPointIIQAuthenticationProvider){
     this.contextChange();
     vscode.window.onDidChangeActiveTextEditor((textEditor: vscode.TextEditor | undefined) => {
       if (!textEditor || undefined == textEditor) {
@@ -417,40 +424,85 @@ export class IIQCommands {
 
   private async getSiteConfig() : Promise<[string, string, string]>{
     var environment = await this.getEnvironment();
-    var url: string = vscode.workspace.getConfiguration('iiq-dev-accelerator').get('iiq_url');
-    var username: string = vscode.workspace.getConfiguration('iiq-dev-accelerator').get('username');
-    var password: string = vscode.workspace.getConfiguration('iiq-dev-accelerator').get('password');
+    let url: string = vscode.workspace.getConfiguration('iiq-dev-accelerator').get('iiq_url');
+    let username: string = null;
+    let password: string = null;
 
-    if(!url || !username || !password){
-      const props = await this.loadTargetProps();
-      if(props){
-        url = props["%%ECLIPSE_URL%%"];
-        username = props["%%ECLIPSE_USER%%"];
-        password = props["%%ECLIPSE_PASS%%"];
-      }
-      if(!url || !username || !password){
-        url = url ? url:"http://localhost:8080/identityiq"; 
-        username = username ? username:"spadmin";
-        password = password ? password:"admin";
-        let configParams = await vscode.window.showInputBox({
-          ignoreFocusOut: true,
-          value: `${url};${username};${password}`,
-          prompt: `Couldn't detect your full configuration from ${environment}.target.properties. Please enter here `, 
-          validateInput: this.validateConfigInput
-        });
-        if(configParams === undefined){
-          return [null, null, null];
+    const props = await this.loadTargetProps();
+    if(props){
+      url = props["%%ECLIPSE_URL%%"].replace(/\\:/,':');
+      username = props["%%ECLIPSE_USER%%"];
+      password = props["%%ECLIPSE_PASS%%"];
+    }
+    if (!url) {
+      url = url ? url:"http://localhost:8080/identityiq";
+      let configParams = await vscode.window.showInputBox({
+        ignoreFocusOut: true,
+        value: `${url}`,
+        prompt: `Couldn't detect your url from ${environment}.target.properties. Please enter here`,
+        validateInput: (__value: string) => {
+          if (!__value) {
+            return 'You must enter some input';
+          }
+          let m = __value.match(/^https?:\/\/.+/i);
+          if (!m || m[0] !== __value) {
+            return 'Please enter a valid url';
+          }
+          return undefined;
         }
-        [url, username, password] = configParams.split(";");
-        vscode.workspace.getConfiguration('iiq-dev-accelerator').update('iiq_url', url, true);
-        vscode.workspace.getConfiguration('iiq-dev-accelerator').update('username', username, true);
-        vscode.workspace.getConfiguration('iiq-dev-accelerator').update('password', password, true);
+      });
+      if (!configParams) {
+        return [null, null, null];
       }
+      url = configParams;
+      vscode.workspace.getConfiguration('iiq-dev-accelerator').update('iiq_url', url, true);
+    }
+    let ok: boolean = false;
+    [ok, username, password] = await this.validateCredentials({
+        environment,
+        username,
+        password
+      }, url, (username !== undefined && password !== undefined));
+    if (!ok) {
+      return [null, null, null];
     }
     if(!this.g_workflowUpdated){
       this.g_workflowUpdated = await this.updateWorkflowIfNeeded(url, username, password);
     }
     return [url, username, password];
+  }
+
+  private async validateCredentials(credentials: SailPointIIQCredential, url: string, unsecure: boolean = false, iteration: number = 0): Promise<[boolean, string | undefined, string | undefined]> {
+    if (iteration >= 3) {
+      return [false, null, null];
+    }
+    let authSession: SailPointIIQAuthenticationSession | undefined;
+    if (!unsecure) {
+      authSession = await vscode.authentication.getSession(SailPointIIQAuthenticationProvider.id, [credentials.environment], { createIfNone: true }) as SailPointIIQAuthenticationSession;
+      credentials = Object.assign({}, credentials, {
+        username: authSession.account.id,
+        password: authSession.accessToken
+      });
+    }
+    if (!credentials) {
+      return [false, null, null];
+    }
+    const [authenticated, identity, error] = await VerifyAuthentication(credentials, url);
+    if (error) {
+      vscode.window.showErrorMessage('Could not contact server to validate credentials, please double-check your URL and try again.');
+      return [false, null, null];
+    }
+    if (!authenticated) {
+      vscode.window.showWarningMessage('Credentials were not validated on the server.');
+      if (unsecure) { 
+        return [false, null, null];
+      }
+      else if (authSession) {
+        this.authProvider.removeSession(authSession.id);
+      }
+      return this.validateCredentials(credentials, url, unsecure, ++iteration);
+    }
+    return [true, credentials.username, credentials.password];
   }
 
   private async postRequestInternal(post_body, url, username, password){

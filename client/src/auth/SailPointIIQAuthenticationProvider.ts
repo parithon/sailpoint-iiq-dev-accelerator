@@ -24,14 +24,15 @@ export class SailPointIIQAuthenticationProvider implements SailPointIIQAuthentic
   }
   public async createSession(scopes: readonly string[]): Promise<SailPointIIQAuthenticationSession> {
     const username = await window.showInputBox({
-      title: ``,
-      prompt: ``,
+      title: `SailPoint IdentityIQ Login for ${scopes[0]}`,
+      prompt: `Please provide the username.`,
       ignoreFocusOut: true
     });
     const accessToken = await window.showInputBox({
-      title: ``,
-      prompt: ``,
-      ignoreFocusOut: true
+      title: `SailPoint IdentityIQ Login for ${username} [${scopes[0]}]`,
+      prompt: `Please provide the password.`,
+      ignoreFocusOut: true,
+      password: true
     });
     if (!username || !accessToken) {
       return Promise.reject(`Authentication cancelled by end user.`);
