@@ -434,6 +434,9 @@ export class IIQCommands {
       username = props["%%ECLIPSE_USER%%"];
       password = props["%%ECLIPSE_PASS%%"];
     }
+    if (username || password) {
+      vscode.window.showWarningMessage(`SECURITY RISK: You should not save credentails within your ${environment}.target.properties file. You should instead use the 'Accounts' option.`);
+    }
     if (!url) {
       url = url ? url:"http://localhost:8080/identityiq";
       let configParams = await vscode.window.showInputBox({
