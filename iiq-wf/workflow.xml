@@ -25,6 +25,7 @@
     <Transition to="Get Log File" when='"getLog".equals(operation);'/>
     <Transition to="Reload Log File" when='"reloadLog".equals(operation);'/>
     <Transition to="Get System Info" when='"getSysInfo".equals(operation);'/>
+    <Transition to="Get System Info as JSON" when='"getSysInfoJSON".equals(operation);'/>
     <Transition to="Import Java" when='"importJava".equals(operation);'/>
     <Transition to="Invalid operation"/>
   </Step>
@@ -494,6 +495,53 @@
           iidDevAccelLogger.debug("Successfully read a log4j file contents"); 
           return contents; 
           ]]>
+      </Source>
+    </Script>
+    <Transition to="Stop"/>
+  </Step>
+  <Step icon="Default" name="Get System Info as JSON" resultVariable="payload">
+    <Script>
+      <Source>
+        <![CDATA[ 
+          import sailpoint.object.*;
+          import java.util.*;
+          import java.io.*;
+          import java.nio.file.*;
+          import java.nio.charset.StandardCharsets;
+          import org.apache.log4j.Logger;
+          import org.apache.logging.log4j.LogManager;
+          import org.apache.logging.log4j.core.LoggerContext;
+          import sailpoint.tools.Util;
+          import sailpoint.Version;
+
+          Logger iidDevAccelLogger=Logger.getLogger("sailpoint.VSCodeExtensionWF"); 
+          iidDevAccelLogger.debug("Getting System Info...");
+          String[] logToSearchArr = {"log4j2.properties", "log4j.properties"};
+          String contents = "";
+
+          contents += "{'productInformation':{";
+          contents += String.format("'version':'%s',", Version.getFullVersion());
+          contents += String.format("'sourceRepositoryLocation':'%s',", Version.getRepoLocation());
+          contents += String.format("'builder':'%s',", Version.getBuilder());
+          contents += String.format("'buildDate':'%s',", Version.getBuildDate());
+          contents += String.format("'applicationHome':'%s',", Util.getApplicationHome());
+          contents += String.format("'hostName':'%s',", Util.getHostName());
+          contents += String.format("'memoryStats':'%s'", Util.getMemoryStats());
+
+          contents += "},'javaSystemProperties':{";
+
+          Enumeration e = System.getProperties().propertyNames();
+          while(e.hasMoreElements()) {
+            String key = e.nextElement().toString();
+            contents += String.format("'%s':'%s',", key, System.getProperty(key));
+          }
+          contents = contents.substring(0, contents.length() - 1);
+
+          contents += "}}";
+          
+          iidDevAccelLogger.debug("Successfully read a log4j file contents"); 
+          return contents; 
+        ]]>
       </Source>
     </Script>
     <Transition to="Stop"/>
