@@ -40,6 +40,7 @@
         "vscode.git"
     ],
     "activationEvents": [
+        "onAuthenticationRequest:SailPointIIQAuthenticationProvider",
         "workspaceContains:**/config/**/*.xml",
         "onLanguage:xml",
         "onCommand:iiq-dev-accelerator.importFile",
@@ -64,6 +65,12 @@
     ],
     "main": "./client/out/extension.js",
     "contributes": {
+        "authentication": [
+            {
+                "id": "SailPointIIQAuthenticationProvider",
+                "label": "SailPoint IdentityIQ"
+            }
+        ],
         "configuration": {
             "languages": [
                 {
@@ -90,19 +97,22 @@
                     "type": "string",
                     "description": "url for your iiq site",
                     "default": "",
-                    "scope": "application"
+                    "scope": "application",
+                    "deprecationMessage": "This setting is no longer used. Please use a <env>.target.properties file instead."
                 },
                 "iiq-dev-accelerator.username": {
                     "type": "string",
                     "description": "username",
                     "default": "",
-                    "scope": "application"
+                    "scope": "application",
+                    "deprecationMessage": "This setting is no longer used. Please use the newer Accounts option."
                 },
                 "iiq-dev-accelerator.password": {
                     "type": "string",
                     "description": "password",
                     "default": "",
-                    "scope": "application"
+                    "scope": "application",
+                    "deprecationMessage": "This setting is no longer used. Please use the newer Accounts option."
                 },
                 "iiq-dev-accelerator.showDeleteProgress": {
                     "type": "boolean",
