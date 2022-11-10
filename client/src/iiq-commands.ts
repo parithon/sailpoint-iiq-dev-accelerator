@@ -232,8 +232,11 @@ export class IIQCommands {
     return this.g_statusBarEnvItem;
   }
 
-  public updateStatusBar(text: string){
+  public async updateStatusBar(text: string, tooltip?: string | vscode.MarkdownString){
     this.g_statusBarEnvItem.text = text;
+    if (tooltip) {
+      this.g_statusBarEnvItem.tooltip = tooltip;
+    }
     if(this.g_statusBarEnvItem.text){
       this.g_statusBarEnvItem.show();
     }else{
@@ -278,12 +281,32 @@ export class IIQCommands {
     return this.g_baseSSBFolder;
   }
  
-  public updateStatusBarIfEnvironmentIsSet(){
+  public async updateStatusBarIfEnvironmentIsSet(){
     var environment: string = vscode.workspace.getConfiguration('iiq-dev-accelerator').get('environment');
     if(!environment){
       return;
     }
-    this.updateStatusBar("IIQ: " + environment);
+    let tooltip: string | vscode.MarkdownString = undefined;
+    let url = vscode.workspace.getConfiguration('iiq-dev-accelerator').get('iiq_url') || (await this.getFileProperties(`${environment}.target.properties`))["%%ECLIPSE_URL%%"];
+    if (url) {
+      let md = `Server Url: [${url}](${url})`;
+      const serverInfosJSON = await this.getSysInfoJSON();
+      const serverInfos = JSON.parse(serverInfosJSON.replace(/\'/g, "¨").replace(/\"/g, "'").replace(/¨/g, "\"").replace(/\n/g, "\\n"));
+      if (serverInfos) {
+        md += `\n\n`;
+        md += `* HostName: **${serverInfos.productInformation.hostName}**\n`;
+        md += `* Version: **${serverInfos.productInformation.version}**\n`;
+        md += `* Builder: **${serverInfos.productInformation.builder}**\n`;
+        md += `* Build Date: **${new Date(serverInfos.productInformation.buildDate)}**\n`;
+        md += `* Java Vendor: **${serverInfos.javaSystemProperties['java.vendor']}**\n`;
+        md += `* OS Name: **${serverInfos.javaSystemProperties['os.name']}**\n`;
+        md += `* Java VM Name: **${serverInfos.javaSystemProperties['java.vm.name']}**\n`;
+        md += `* Java VM Vendor: **${serverInfos.javaSystemProperties['java.vm.vendor']}**\n`;
+        md += `* Java VM Version **${serverInfos.javaSystemProperties['java.vm.version']}**\n`;
+      }
+      tooltip = new vscode.MarkdownString(md, true);
+    }
+    this.updateStatusBar("IIQ: " + environment, tooltip);
   }
 
   private async getEnvironment(){
@@ -1858,6 +1881,24 @@ export class IIQCommands {
     }
     else{
       vscode.window.showErrorMessage(`Operation failed`);
+    }
+  }
+
+  public async getSysInfoJSON() {
+    var post_body = {
+      "workflowArgs": {
+        "operation": "getSysInfoJSON"
+      }
+    };
+    var result = await vscode.window.withProgress({
+      location: vscode.ProgressLocation.Notification,
+      title: "Retrieving system information...",
+      cancellable: true
+    }, () => {
+      return this.postRequest(JSON.stringify(post_body));
+    });
+    if (result["payload"] !== undefined) {
+      return result["payload"];
     }
   }
 
